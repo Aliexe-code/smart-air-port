@@ -149,7 +149,7 @@
 - name: Start application with PM2 using Bun
   ansible.builtin.shell: |
     export PATH="$HOME/.bun/bin:$PATH"
-    pm2 start bun --name smart-airport -- run start
+    p m2 start bun --name smart-airport -- run start
   args:
     chdir: "{{ app_deploy_dir }}"
   become_user: "{{ ansible_user }}"
