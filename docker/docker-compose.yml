@@ -1,0 +1,124 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: smart-airport-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: smartairport123
+      MONGO_INITDB_DATABASE: smartairport
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongodb/init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - smart-airport-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis Cache
+  redis:
+    image: redis:7.2-alpine
+    container_name: smart-airport-redis
+    restart: unless-stopped
+    command: redis-server --requirepass smartairport123
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - smart-airport-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # Smart Airport Backend Application
+  backend:
+    image: ${BACKEND_IMAGE:-uriel25x/grad-project:latest}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    container_name: smart-airport-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      # Application Configuration
+      NODE_ENV: production
+      PORT: 3001
+      
+      # Database Configuration
+      MONGO_URI: mongodb://admin:smartairport123@mongodb:27017/smartairport?authSource=admin
+      
+      # Redis Configuration
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: smartairport123
+      
+      # JWT Configuration
+      JWT_SECRET: ${JWT_SECRET:-AASFLQPLD1020DASDLA0SD0L0DW02}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-LASDACASFQW112521@RT2=3}
+      
+      # Mail Configuration
+      MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USER: ${MAIL_USER:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-"Smart Airport" <noreply@smartairport.com>}
+      
+      # API Keys
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PUBLIC_KEY: ${STRIPE_PUBLIC_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      
+      AMADEUS_API_KEY: ${AMADEUS_API_KEY:-}
+      AMADEUS_API_SECRET: ${AMADEUS_API_SECRET:-}
+      
+      PAYMOB_API_KEY: ${PAYMOB_API_KEY:-}
+      PAYMOB_MERCHANT_ID: ${PAYMOB_MERCHANT_ID:-}
+      PAYMOB_HMAC_SECRET: ${PAYMOB_HMAC_SECRET:-}
+      PAYMOB_CARD_INTEGRATION_ID: ${PAYMOB_CARD_INTEGRATION_ID:-}
+      PAYMOB_IFRAME_ID: ${PAYMOB_IFRAME_ID:-}
+      
+      # Frontend Configuration
+      FRONTEND_URL: ${FRONTEND_URL:-https://sky-shifters.vercel.app}
+      APP_URL: ${APP_URL:-http://localhost:3001}
+      
+      # Booking Configuration
+      BOOKING_TIMEOUT_MINUTES: ${BOOKING_TIMEOUT_MINUTES:-5}
+      
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - smart-airport-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  smart-airport-network:
+    driver: bridge

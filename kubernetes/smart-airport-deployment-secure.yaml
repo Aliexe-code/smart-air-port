@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smart-airport
+  labels:
+    app: smart-airport
+    version: v1
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: smart-airport
+  template:
+    metadata:
+      labels:
+        app: smart-airport
+        version: v1
+    spec:
+      containers:
+      - name: smart-airport
+        image: uriel25x/grad-project:latest
+        ports:
+        - containerPort: 3000
+          name: http
+        # Load environment from ConfigMap
+        envFrom:
+        - configMapRef:
+            name: smart-airport-config
+        - secretRef:
+            name: smart-airport-secrets
+        resources:
+          requests:
+            memory: "200Mi"
+            cpu: "100m"
+          limits:
+            memory: "500Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        # Security context
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+

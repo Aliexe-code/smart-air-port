@@ -1,0 +1,140 @@
+---
+# Docker Deployment Role for Smart Airport Application
+- name: Install Docker prerequisites
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: Add Docker GPG key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '0644'
+  when: ansible_os_family == "Debian"
+
+- name: Add Docker repository
+  ansible.builtin.apt_repository:
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+    update_cache: yes
+  when: ansible_os_family == "Debian"
+
+- name: Install Docker
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Start and enable Docker service
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Add user to docker group
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: yes
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ docker_app_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Copy Docker files
+  ansible.builtin.synchronize:
+    src: "{{ playbook_dir }}/../docker/"
+    dest: "{{ docker_app_dir }}/"
+    delete: yes
+    rsync_opts:
+      - "--exclude=logs"
+  delegate_to: localhost
+
+- name: Copy application source
+  ansible.builtin.synchronize:
+    src: "{{ playbook_dir }}/../"
+    dest: "{{ docker_app_dir }}/app/"
+    delete: yes
+    rsync_opts:
+      - "--exclude=node_modules"
+      - "--exclude=.git"
+      - "--exclude=ansible"
+      - "--exclude=docker"
+      - "--exclude=coverage"
+      - "--exclude=.env"
+  delegate_to: localhost
+
+- name: Create environment file
+  ansible.builtin.template:
+    src: templates/docker.env.j2
+    dest: "{{ docker_app_dir }}/.env"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0600'
+
+- name: Create logs directory
+  ansible.builtin.file:
+    path: "{{ docker_app_dir }}/logs"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Stop existing containers
+  ansible.builtin.shell: |
+    cd {{ docker_app_dir }}
+    docker compose down
+  become_user: "{{ ansible_user }}"
+  ignore_errors: yes
+
+- name: Build and start Docker services
+  ansible.builtin.shell: |
+    cd {{ docker_app_dir }}
+    docker compose up -d --build
+  become_user: "{{ ansible_user }}"
+  environment:
+    HOME: "{{ ansible_env.HOME }}"
+
+- name: Wait for services to be ready
+  ansible.builtin.pause:
+    seconds: 60
+
+- name: Verify backend service is running
+  ansible.builtin.uri:
+    url: "http://localhost:3001/health"
+    method: GET
+    status_code: [200, 404]
+  register: backend_health_check
+  retries: 10
+  delay: 10
+  ignore_errors: yes
+
+- name: Display Docker service status
+  ansible.builtin.shell: |
+    cd {{ docker_app_dir }}
+    docker compose ps
+  become_user: "{{ ansible_user }}"
+  register: docker_status
+
+- name: Show deployment results
+  ansible.builtin.debug:
+    msg:
+      - "Docker deployment completed!"
+      - "Services status: {{ docker_status.stdout }}"
+      - "Backend health: {{ 'OK' if backend_health_check is not failed else 'Failed' }}"

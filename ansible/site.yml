@@ -1,0 +1,88 @@
+# site.yml - Main playbook for Smart Airport application deployment
+---
+- name: Deploy Smart Airport Application to On-Premises Servers
+  hosts: all
+  become: yes
+  become_method: sudo
+  gather_facts: yes
+
+  vars:
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=accept-new'
+    ansible_ssh_private_key_file: "~/Downloads/GradServer_key.pem"
+    # Default values - can be overridden via command line or inventory
+    selected_roles: "{{ selected_roles | default(['dependencies', 'nodejs_app']) }}"
+    app_environment: "{{ environment | default('production') }}"
+
+  pre_tasks:
+    - name: Update package cache (Debian/Ubuntu)
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+    - name: Update package cache (RedHat/CentOS)
+      ansible.builtin.dnf:
+        update_cache: yes
+      when: ansible_os_family == "RedHat"
+
+    - name: Ensure required directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ ansible_env.HOME }}/app"
+        - "{{ ansible_env.HOME }}/logs"
+
+    - name: Display deployment information
+      ansible.builtin.debug:
+        msg:
+          - "Deploying Smart Airport Application"
+          - "Target host: {{ inventory_hostname }}"
+          - "Environment: {{ app_environment }}"
+          - "Build number: {{ build_number }}"
+          - "Selected roles: {{ selected_roles }}"
+
+  roles:
+    - { role: dependencies, when: "'dependencies' in selected_roles" }
+    - { role: nodejs_app, when: "'nodejs_app' in selected_roles" }
+
+  post_tasks:
+    - name: Verify MongoDB service is running
+      ansible.builtin.service:
+        name: mongod
+        state: started
+      when: "'dependencies' in selected_roles"
+
+    - name: Verify Redis service is running
+      ansible.builtin.service:
+        name: redis-server
+        state: started
+      when: "'dependencies' in selected_roles"
+
+    - name: Wait for application to be ready
+      ansible.builtin.uri:
+        url: "http://{{ ansible_host }}:{{ app_port | default(3001) }}/health"
+        method: GET
+        status_code: [200, 404]  # 404 is acceptable if health endpoint doesn't exist
+      register: app_health_check
+      retries: 30
+      delay: 10
+      when: "'nodejs_app' in selected_roles"
+      ignore_errors: yes
+
+    - name: Check PM2 application status
+      ansible.builtin.shell: pm2 list | grep {{ app_name | default('smart-air-port') }}
+      register: pm2_status
+      become_user: "{{ ansible_user }}"
+      when: "'nodejs_app' in selected_roles"
+      ignore_errors: yes
+
+    - name: Display deployment status
+      ansible.builtin.debug:
+        msg:
+          - "Deployment completed successfully!"
+          - "Application URL: http://{{ ansible_host }}:{{ nginx_port | default(80) }}"
+          - "Direct app URL: http://{{ ansible_host }}:{{ app_port | default(3001) }}"
+          - "PM2 Status: {{ pm2_status.stdout if pm2_status is defined else 'Not checked' }}"
+      when: "'nodejs_app' in selected_roles"

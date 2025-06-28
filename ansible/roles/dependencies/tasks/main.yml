@@ -1,0 +1,153 @@
+---
+# Dependencies installation role for Smart Airport Application
+- name: Update package cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+
+- name: Install system dependencies
+  ansible.builtin.apt:
+    name:
+      - curl
+      - wget
+      - unzip
+      - gnupg
+      - software-properties-common
+      - apt-transport-https
+      - ca-certificates
+      - build-essential
+    state: present
+  when: ansible_os_family == "Debian"
+
+# MongoDB Installation
+- name: Add MongoDB GPG key
+  ansible.builtin.apt_key:
+    url: https://www.mongodb.org/static/pgp/server-7.0.asc
+    state: present
+  when: install_mongodb | default(true)
+
+- name: Add MongoDB repository
+  ansible.builtin.apt_repository:
+    repo: "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu {{ ansible_distribution_release }}/mongodb-org/7.0 multiverse"
+    state: present
+    update_cache: yes
+  when: install_mongodb | default(true)
+
+- name: Install MongoDB
+  ansible.builtin.apt:
+    name:
+      - mongodb-org
+    state: present
+  when: install_mongodb | default(true)
+
+- name: Start and enable MongoDB service
+  ansible.builtin.service:
+    name: mongod
+    state: started
+    enabled: yes
+  when: install_mongodb | default(true)
+
+# Redis Installation
+- name: Install Redis
+  ansible.builtin.apt:
+    name: redis-server
+    state: present
+  when: install_redis | default(true)
+
+- name: Configure Redis
+  ansible.builtin.lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: '^# requirepass'
+    line: 'requirepass {{ redis_password | default("1asfalsp123ed") }}'
+    backup: yes
+  when: install_redis | default(true)
+  notify: restart redis
+
+- name: Start and enable Redis service
+  ansible.builtin.service:
+    name: redis-server
+    state: started
+    enabled: yes
+  when: install_redis | default(true)
+
+# Nginx Installation (optional reverse proxy)
+- name: Install Nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+  when: install_nginx | default(false)
+
+- name: Create Nginx configuration for Smart Airport
+  ansible.builtin.template:
+    src: templates/nginx-smartairport.conf.j2
+    dest: /etc/nginx/sites-available/smartairport
+    backup: yes
+  when: install_nginx | default(false)
+  notify: restart nginx
+
+- name: Enable Smart Airport site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/smartairport
+    dest: /etc/nginx/sites-enabled/smartairport
+    state: link
+  when: install_nginx | default(false)
+  notify: restart nginx
+
+- name: Remove default Nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  when: install_nginx | default(false)
+  notify: restart nginx
+
+- name: Start and enable Nginx service
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: yes
+  when: install_nginx | default(false)
+
+# Firewall Configuration
+- name: Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+  when: configure_firewall | default(true)
+
+- name: Configure UFW defaults
+  ansible.builtin.ufw:
+    direction: "{{ item.direction }}"
+    policy: "{{ item.policy }}"
+  loop:
+    - { direction: 'incoming', policy: 'deny' }
+    - { direction: 'outgoing', policy: 'allow' }
+  when: configure_firewall | default(true)
+
+- name: Allow SSH
+  ansible.builtin.ufw:
+    rule: allow
+    name: OpenSSH
+  when: configure_firewall | default(true)
+
+- name: Allow application port
+  ansible.builtin.ufw:
+    rule: allow
+    port: "{{ app_port | default(3001) }}"
+    proto: tcp
+  when: configure_firewall | default(true)
+
+- name: Allow Nginx ports
+  ansible.builtin.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - "80"
+    - "443"
+  when: configure_firewall | default(true) and install_nginx | default(false)
+
+- name: Enable UFW
+  ansible.builtin.ufw:
+    state: enabled
+  when: configure_firewall | default(true)

@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  web:
+    image: ${WEB_IMAGE:-nouraldeen152/networkapp:latest}
+    container_name: smart-airport-web
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    volumes:
+      - staticfiles:/app/djangoapp/staticfiles
+    environment:
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - DJANGO_TRUSTED_ORIGIN=${DJANGO_TRUSTED_ORIGIN:-http://localhost}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    image: ${NGINX_IMAGE:-nginx:latest}
+    container_name: smart-airport-nginx
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - staticfiles:/app/staticfiles
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  staticfiles:
+    name: ${STATIC_FILES_VOLUME:-staticfiles}
+
+networks:
+  app_network:
+    name: ${NETWORK_NAME:-app_network}
+    driver: bridge

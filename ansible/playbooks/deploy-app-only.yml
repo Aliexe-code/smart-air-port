@@ -1,0 +1,39 @@
+---
+# Application-only deployment playbook - assumes dependencies are already installed
+- name: Smart Airport NestJS Application Update Deployment
+  hosts: on_prems
+  become: yes
+  gather_facts: yes
+
+  vars:
+    selected_roles:
+      - nodejs_app
+    backup_enabled: true
+
+  pre_tasks:
+    - name: Verify Node.js is installed
+      ansible.builtin.command: node --version
+      register: node_check
+      failed_when: node_check.rc != 0
+
+    - name: Verify PM2 is installed
+      ansible.builtin.command: pm2 --version
+      register: pm2_check
+      failed_when: pm2_check.rc != 0
+
+    - name: Display deployment information
+      ansible.builtin.debug:
+        msg:
+          - "Updating Smart Airport NestJS Application"
+          - "Target hosts: {{ ansible_play_hosts }}"
+          - "Environment: {{ environment | default('production') }}"
+
+  roles:
+    - nodejs_app
+
+  post_tasks:
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg:
+          - "Application update completed successfully!"
+          - "Application is available at: http://{{ ansible_host }}:{{ app_port | default(3001) }}"

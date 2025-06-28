@@ -1,0 +1,102 @@
+---
+# Simple Docker deployment - pulls and runs the Smart Airport Docker image
+- name: Deploy Smart Airport with Docker
+  hosts: on_prems
+  gather_facts: yes
+
+  vars:
+    docker_image: "uriel25x/grad-project:latest"
+    container_name: "smart-airport"
+    app_port: 3001
+    container_port: 3000
+
+  tasks:
+    - name: Display deployment information
+      ansible.builtin.debug:
+        msg:
+          - "Starting Docker deployment of Smart Airport Application"
+          - "Docker image: {{ docker_image }}"
+          - "Container name: {{ container_name }}"
+
+    - name: Check Docker version
+      ansible.builtin.shell: docker --version
+      register: docker_version
+
+    - name: Display Docker version
+      ansible.builtin.debug:
+        msg: "{{ docker_version.stdout }}"
+
+    - name: Create application directory
+      ansible.builtin.file:
+        path: "/home/{{ ansible_user }}/smart-airport"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+
+    - name: Copy environment file
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../env.txt"
+        dest: "/home/{{ ansible_user }}/smart-airport/.env"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0600'
+
+    - name: Stop existing container
+      ansible.builtin.shell: |
+        docker stop {{ container_name }} || true
+        docker rm {{ container_name }} || true
+      ignore_errors: yes
+
+    - name: Pull latest Docker image
+      ansible.builtin.shell: |
+        docker pull {{ docker_image }}
+
+    - name: Run Smart Airport container
+      ansible.builtin.shell: |
+        docker run -d \
+          --name {{ container_name }} \
+          -p {{ app_port }}:{{ container_port }} \
+          --env-file /home/{{ ansible_user }}/smart-airport/.env \
+          --restart unless-stopped \
+          {{ docker_image }}
+
+    - name: Wait for application to start
+      ansible.builtin.pause:
+        seconds: 30
+
+    - name: Check if container is running
+      ansible.builtin.shell: |
+        docker ps --filter "name={{ container_name }}" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+      register: container_status
+
+    - name: Test application health
+      ansible.builtin.uri:
+        url: "http://localhost:{{ app_port }}/health"
+        method: GET
+        status_code: [200, 404]
+      register: health_check
+      retries: 5
+      delay: 10
+      ignore_errors: yes
+
+  post_tasks:
+    - name: Display deployment results
+      ansible.builtin.debug:
+        msg:
+          - "Simple Docker deployment completed!"
+          - "Container status: {{ container_status.stdout }}"
+          - "Health check: {{ 'OK' if health_check is not failed else 'Failed' }}"
+          - "Application URL: http://{{ ansible_host }}:{{ app_port }}"
+          - "Health endpoint: http://{{ ansible_host }}:{{ app_port }}/health"
+
+    - name: Show container logs (last 20 lines)
+      ansible.builtin.shell: |
+        docker logs --tail 20 {{ container_name }}
+      register: container_logs
+      ignore_errors: yes
+
+    - name: Display container logs
+      ansible.builtin.debug:
+        msg: "{{ container_logs.stdout_lines }}"
+      when: container_logs is defined and container_logs.stdout_lines is defined

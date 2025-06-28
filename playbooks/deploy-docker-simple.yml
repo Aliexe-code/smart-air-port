@@ -1,0 +1,93 @@
+---
+# Simple Docker deployment - pulls and runs the Smart Airport Docker image
+- name: Deploy Smart Airport with Docker
+  hosts: on_prems
+  gather_facts: yes
+
+  vars:
+    docker_image: "uriel25x/grad-project:latest"
+    container_name: "smart-airport"
+    app_port: 3001
+    container_port: 3000
+
+  tasks:
+    - name: Display deployment information
+      ansible.builtin.debug:
+        msg:
+          - "Starting Docker deployment of Smart Airport Application"
+          - "Docker image: {{ docker_image }}"
+          - "Container name: {{ container_name }}"
+
+    - name: Check Docker version
+      ansible.builtin.shell: docker --version
+      register: docker_version
+
+    - name: Display Docker version
+      ansible.builtin.debug:
+        msg: "{{ docker_version.stdout }}"
+
+    - name: Create application directory
+      ansible.builtin.file:
+        path: "/home/{{ ansible_user }}/smart-airport"
+        state: directory
+        mode: '0755'
+
+    - name: Copy environment file
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../env.txt"
+        dest: "/home/{{ ansible_user }}/smart-airport/.env"
+        mode: '0600'
+
+    - name: Stop existing container
+      ansible.builtin.shell: |
+        docker stop {{ container_name }} || true
+        docker rm {{ container_name }} || true
+      ignore_errors: yes
+
+    - name: Pull latest Docker image
+      ansible.builtin.shell: docker pull {{ docker_image }}
+
+    - name: Run Smart Airport container
+      ansible.builtin.shell: |
+        docker run -d \
+          --name {{ container_name }} \
+          -p {{ app_port }}:{{ container_port }} \
+          --env-file /home/{{ ansible_user }}/smart-airport/.env \
+          --restart unless-stopped \
+          {{ docker_image }}
+
+    - name: Wait for application to start
+      ansible.builtin.pause:
+        seconds: 15
+
+    - name: Check container status
+      ansible.builtin.shell: docker ps --filter "name={{ container_name }}"
+      register: container_status
+
+    - name: Display container status
+      ansible.builtin.debug:
+        msg: "{{ container_status.stdout_lines }}"
+
+    - name: Test application health
+      ansible.builtin.uri:
+        url: "http://localhost:{{ app_port }}/health"
+        method: GET
+        status_code: [200, 404]
+      register: health_check
+      retries: 3
+      delay: 5
+      ignore_errors: yes
+
+    - name: Show container logs
+      ansible.builtin.shell: docker logs --tail 10 {{ container_name }}
+      register: container_logs
+      ignore_errors: yes
+
+    - name: Display results
+      ansible.builtin.debug:
+        msg:
+          - "Deployment completed!"
+          - "Health check: {{ 'OK' if health_check is not failed else 'Failed' }}"
+          - "Application URL: http://localhost:{{ app_port }}"
+          - "Container logs:"
+          - "{{ container_logs.stdout_lines }}"

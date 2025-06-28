@@ -1,0 +1,34 @@
+---
+# Docker-based deployment playbook for Smart Airport Application
+- name: Smart Airport Docker Deployment
+  hosts: on_prems
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    selected_roles:
+      - docker_deployment
+    deployment_type: "docker"
+    backend_image: "{{ backend_image | default('uriel25x/grad-project:latest') }}"
+
+  pre_tasks:
+    - name: Display deployment information
+      ansible.builtin.debug:
+        msg:
+          - "Starting Docker deployment of Smart Airport Application"
+          - "Target hosts: {{ ansible_play_hosts }}"
+          - "Deployment type: {{ deployment_type }}"
+          - "Environment: {{ environment | default('production') }}"
+
+  roles:
+    - docker_deployment
+
+  post_tasks:
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg:
+          - "Docker deployment completed successfully!"
+          - "Application is available at: http://{{ ansible_host }}:{{ app_port | default(3001) }}"
+          - "API Documentation: http://{{ ansible_host }}:{{ app_port | default(3001) }}/api"
+          - "MongoDB: {{ ansible_host }}:27017"
+          - "Redis: {{ ansible_host }}:6379"

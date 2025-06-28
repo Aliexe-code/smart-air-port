@@ -1,0 +1,13 @@
+---
+# Variables for Docker deployment role
+docker_app_dir: "/home/{{ ansible_user }}/smart-airport-docker"
+app_port: 3001
+
+# Docker configuration
+docker_services:
+  - backend
+  - mongodb
+  - redis
+
+# Application configuration
+app_environment: "{{ environment | default('production') }}"

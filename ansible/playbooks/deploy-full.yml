@@ -1,0 +1,34 @@
+---
+# Full deployment playbook - installs dependencies and deploys NestJS application
+- name: Full Smart Airport NestJS Application Deployment
+  hosts: on_prems
+  become: yes
+  gather_facts: yes
+
+  vars:
+    selected_roles:
+      - dependencies
+      - nodejs_app
+    install_mongodb: true
+    install_redis: true
+    install_nginx: false
+    configure_firewall: true
+
+  pre_tasks:
+    - name: Display deployment information
+      ansible.builtin.debug:
+        msg:
+          - "Starting full deployment of Smart Airport NestJS Application"
+          - "Target hosts: {{ ansible_play_hosts }}"
+          - "Environment: {{ environment | default('production') }}"
+
+  roles:
+    - dependencies
+    - nodejs_app
+
+  post_tasks:
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg:
+          - "Full deployment completed successfully!"
+          - "Application is available at: http://{{ ansible_host }}:{{ app_port | default(3001) }}"

@@ -1,0 +1,59 @@
+
+# Global variables for all hosts
+[all:vars]
+# For Azure deployment
+ansible_user=azureuser
+ansible_ssh_private_key_file=~/Downloads/GradServer_key.pem
+ansible_ssh_common_args='-o StrictHostKeyChecking=accept-new'
+# For local testing (commented out)
+# ansible_user=uriel
+# ansible_connection=local
+# ansible_python_interpreter=/usr/bin/python3
+
+# On-premises servers group
+[on_prems]
+# Azure server
+server_01 ansible_host=51.105.241.63 ansible_user=azureuser
+# Local testing server (commented out)
+# server_01 ansible_host=localhost ansible_user=uriel ansible_connection=local
+
+# Production environment servers
+[production]
+server_01
+
+# Staging environment servers
+[staging]
+# Add staging servers here when available
+
+# Web servers (running the application)
+[webservers]
+server_01
+
+# Database servers (if separate from web servers)
+[dbservers]
+# Add database servers here if using separate DB servers
+
+# Load balancers (if using separate load balancer servers)
+[loadbalancers]
+# Add load balancer servers here if needed
+
+# Group variables for on_prems
+[on_prems:vars]
+app_environment=production
+docker_compose_version=2.20.0
+build_number=latest
+deploy_user=azureuser
+app_port=3001
+nginx_port=80
+
+# Group variables for production
+[production:vars]
+app_environment=production
+log_level=INFO
+debug_mode=false
+
+# Group variables for staging
+[staging:vars]
+app_environment=staging
+log_level=DEBUG
+debug_mode=true

@@ -1,0 +1,19 @@
+---
+# Handlers for dependencies role
+- name: restart redis
+  ansible.builtin.service:
+    name: redis-server
+    state: restarted
+  listen: restart redis
+
+- name: restart nginx
+  ansible.builtin.service:
+    name: nginx
+    state: restarted
+  listen: restart nginx
+
+- name: restart mongod
+  ansible.builtin.service:
+    name: mongod
+    state: restarted
+  listen: restart mongod

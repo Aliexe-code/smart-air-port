@@ -1,0 +1,29 @@
+# Smart Airport Backend Dockerfile - Working Version
+FROM node:18-alpine
+
+# Install system dependencies
+RUN apk add --no-cache curl dumb-init
+
+# Install Bun
+RUN npm install -g bun
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package.json bun.lock* ./
+
+# Install dependencies with Bun
+RUN bun install
+
+# Copy source code
+COPY . .
+
+# Build the application with Node.js (for compatibility)
+RUN npm run build
+
+# Expose port
+EXPOSE 3001
+
+# Start the application with Bun
+CMD ["bun", "run", "start:prod"]

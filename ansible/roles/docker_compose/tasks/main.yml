@@ -1,0 +1,86 @@
+#SPDX-License-Identifier: MIT-0
+---
+# Docker Compose deployment role for Smart Airport Application
+- name: Set deployment directory
+  ansible.builtin.set_fact:
+    deployment_dir: "{{ ansible_env.HOME }}/smart-airport-app"
+
+- name: Create deployment directory
+  ansible.builtin.file:
+    path: "{{ deployment_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Stop existing containers if running
+  ansible.builtin.command: docker compose down
+  args:
+    chdir: "{{ deployment_dir }}"
+  ignore_errors: yes
+
+- name: Copy docker-compose.yml to deployment directory
+  ansible.builtin.copy:
+    src: files/docker-compose.yml
+    dest: "{{ deployment_dir }}/docker-compose.yml"
+    mode: '0644'
+  notify: restart application
+
+- name: Copy nginx.conf to deployment directory
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../nginx/nginx.conf"
+    dest: "{{ deployment_dir }}/nginx.conf"
+    mode: '0644'
+  notify: restart application
+
+- name: Create .env file for Docker Compose
+  ansible.builtin.template:
+    src: templates/docker-compose.env.j2
+    dest: "{{ deployment_dir }}/.env"
+    mode: '0644'
+  notify: restart application
+
+- name: Pull latest Docker images
+  ansible.builtin.command: docker compose pull
+  args:
+    chdir: "{{ deployment_dir }}"
+  environment:
+    BUILD_NUMBER: "{{ build_number | default('latest') }}"
+    HOST_IP: "{{ ansible_host }}"
+  register: docker_pull_result
+  changed_when: "'Downloaded newer image' in docker_pull_result.stdout"
+
+- name: Start Docker Compose services
+  ansible.builtin.command: docker compose up -d
+  args:
+    chdir: "{{ deployment_dir }}"
+  environment:
+    BUILD_NUMBER: "{{ build_number | default('latest') }}"
+    HOST_IP: "{{ ansible_host }}"
+  register: docker_compose_result
+
+- name: Wait for services to be ready
+  ansible.builtin.pause:
+    seconds: 30
+
+- name: Verify web service is running
+  ansible.builtin.command: docker compose ps web
+  args:
+    chdir: "{{ deployment_dir }}"
+  register: web_service_status
+  changed_when: false
+
+- name: Verify nginx service is running
+  ansible.builtin.command: docker compose ps nginx
+  args:
+    chdir: "{{ deployment_dir }}"
+  register: nginx_service_status
+  changed_when: false
+
+- name: Display service status
+  ansible.builtin.debug:
+    msg:
+      - "Web service status: {{ web_service_status.stdout }}"
+      - "Nginx service status: {{ nginx_service_status.stdout }}"
+
+- name: Clean up unused Docker images
+  ansible.builtin.command: docker image prune -f
+  when: cleanup_docker_images | default(true)

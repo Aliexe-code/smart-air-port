@@ -1,0 +1,4 @@
+#SPDX-License-Identifier: MIT-0
+---
+# vars file for docker_compose
+IMAGE_TAG: "0"

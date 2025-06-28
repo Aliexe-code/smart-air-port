@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: smart-airport-service
+  labels:
+    app: smart-airport
+spec:
+  selector:
+    app: smart-airport
+  ports:
+  - name: http
+    port: 3001
+    targetPort: 3000
+    protocol: TCP
+  type: LoadBalancer  # Use NodePort for local testing

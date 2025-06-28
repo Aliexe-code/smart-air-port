@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smart-airport
+  labels:
+    app: smart-airport
+spec:
+  replicas: 2  # Start with 2 instances for basic redundancy
+  selector:
+    matchLabels:
+      app: smart-airport
+  template:
+    metadata:
+      labels:
+        app: smart-airport
+    spec:
+      containers:
+      - name: smart-airport
+        image: uriel25x/grad-project:latest
+        ports:
+        - containerPort: 3000
+        env:
+        # Basic environment variables
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        # JWT secrets (use ConfigMap/Secret in production)
+        - name: JWT_SECRET
+          value: "AASFLQPLD1020DASDLA0SD0L0DW02"
+        - name: JWT_REFRESH_SECRET
+          value: "LASDACASFQW112521@RT2=3"
+        # Database connection (assuming external MongoDB)
+        - name: MONGO_URI
+          value: "mongodb+srv://maged:3333@cluster0.ueawaen.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+        # Redis connection (assuming external Redis)
+        - name: REDIS_HOST
+          value: "localhost"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_PASSWORD
+          value: "1asfalsp123ed"
+        # Application URLs
+        - name: FRONTEND_URL
+          value: "https://sky-shifters.vercel.app"
+        - name: APP_URL
+          value: "https://sky-shifters.duckdns.org"
+        # API Keys (use Secrets in production)
+        - name: STRIPE_SECRET_KEY
+          value: "sk_test_51QuhXLPxWTngOvfGXZbJu1JaO6Sy4TNWlltwIHUj339qKiQNji8wKDVICr2wdkBKTSqU1Ph4RX32m3F1CLIUHpVO00wGIMj605"
+        - name: AMADEUS_API_KEY
+          value: "xQkSqpzxmAcSrNBVGMYFumfdXv5V3ySk"
+        - name: AMADEUS_API_SECRET
+          value: "pgJ7EcSCEGGkkMuY"
+        # Mail configuration
+        - name: MAIL_HOST
+          value: "smtp.gmail.com"
+        - name: MAIL_PORT
+          value: "587"
+        - name: MAIL_USER
+          value: "nestjst@gmail.com"
+        - name: MAIL_PASSWORD
+          value: "llne nrbs buvv uaft"
+        - name: MAIL_FROM
+          value: "NestJS Test <nestjst@gmail.com>"
+        resources:
+          requests:
+            memory: "200Mi"
+            cpu: "100m"
+          limits:
+            memory: "500Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+

@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smart-airport-config
+  labels:
+    app: smart-airport
+data:
+  # Application configuration
+  NODE_ENV: "production"
+  PORT: "3000"
+  
+  # URLs
+  FRONTEND_URL: "https://sky-shifters.vercel.app"
+  APP_URL: "https://sky-shifters.duckdns.org"
+  
+  # Database configuration
+  REDIS_HOST: "localhost"
+  REDIS_PORT: "6379"
+  
+  # Mail configuration
+  MAIL_HOST: "smtp.gmail.com"
+  MAIL_PORT: "587"
+  MAIL_USER: "nestjst@gmail.com"
+  MAIL_FROM: "NestJS Test <nestjst@gmail.com>"
+  
+  # PayMob configuration
+  PAYMOB_MERCHANT_ID: "1048250"
+  PAYMOB_CARD_INTEGRATION_ID: "5105203"
+  PAYMOB_IFRAME_ID: "926085"
+  
+  # Application settings
+  BOOKING_TIMEOUT_MINUTES: "5"
+

@@ -1,0 +1,53 @@
+#SPDX-License-Identifier: MIT-0
+---
+- name: Get host's primary IP address
+  ansible.builtin.set_fact:
+    host_ip: "{{ ansible_host }}"
+
+- name: Copy nginx.conf to remote server
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../nginx/nginx.conf"  # Local path relative to playbook
+    dest: "{{ ansible_env.HOME }}/nginx.conf"
+    mode: '0644'
+
+- name: Create staticfiles volume
+  community.docker.docker_volume:
+    name: staticfiles
+    state: present
+
+- name: Create shared network
+  community.docker.docker_network:
+    name: app_network
+    state: present
+
+- name: Deploy web container
+  community.docker.docker_container:
+    name: web
+    image: "nouraldeen152/networkapp:{{ build_number | default('latest') }}"
+    state: started
+    restart: yes
+    ports:
+      - "8000:8000"
+    volumes:
+      - "staticfiles:/app/djangoapp/staticfiles"
+    networks:
+      - name: app_network
+        aliases:
+          - web
+    env:
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,{{ host_ip }}"
+      DJANGO_TRUSTED_ORIGIN: "http://localhost,http://{{ host_ip }}"
+
+- name: Deploy nginx container
+  community.docker.docker_container:
+    name: nginx
+    image: nginx:latest
+    state: started
+    restart: yes
+    ports:
+      - "80:80"
+    volumes:
+      - "{{ ansible_env.HOME }}/nginx.conf:/etc/nginx/conf.d/default.conf:ro" # Mount nginx configuration file
+      - "staticfiles:/app/staticfiles"
+    networks:
+      - name: app_network

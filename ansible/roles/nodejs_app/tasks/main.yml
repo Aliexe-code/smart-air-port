@@ -1,0 +1,178 @@
+---
+# NestJS Smart Airport Application Deployment Role
+- name: Update package cache (Debian/Ubuntu)
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+
+- name: Install Node.js prerequisites
+  ansible.builtin.apt:
+    name:
+      - curl
+      - software-properties-common
+      - build-essential
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Add NodeSource repository
+  ansible.builtin.shell: |
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+  when: ansible_os_family == "Debian"
+
+- name: Install Node.js
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Install Bun runtime
+  ansible.builtin.shell: |
+    curl -fsSL https://bun.sh/install | bash
+  become_user: "{{ ansible_user }}"
+  environment:
+    HOME: "{{ ansible_env.HOME }}"
+
+- name: Add Bun to PATH
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    line: 'export PATH="$HOME/.bun/bin:$PATH"'
+    create: yes
+  become_user: "{{ ansible_user }}"
+
+- name: Install NestJS CLI globally
+  ansible.builtin.npm:
+    name: "@nestjs/cli"
+    global: yes
+    state: present
+
+- name: Install PM2 globally
+  ansible.builtin.npm:
+    name: pm2
+    global: yes
+    state: present
+
+- name: Create application directory
+  ansible.builtin.file:
+    path: "{{ app_deploy_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Stop existing PM2 application
+  ansible.builtin.command: pm2 stop {{ app_name }}
+  become_user: "{{ ansible_user }}"
+  ignore_errors: yes
+
+- name: Create backup of current deployment
+  ansible.builtin.command: |
+    mv {{ app_deploy_dir }} {{ app_deploy_dir }}_backup_{{ ansible_date_time.epoch }}
+  ignore_errors: yes
+  when: backup_enabled | default(true)
+
+- name: Recreate application directory
+  ansible.builtin.file:
+    path: "{{ app_deploy_dir }}"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Copy application files
+  ansible.builtin.synchronize:
+    src: "{{ playbook_dir }}/../"
+    dest: "{{ app_deploy_dir }}/"
+    delete: yes
+    rsync_opts:
+      - "--exclude=node_modules"
+      - "--exclude=.git"
+      - "--exclude=ansible"
+      - "--exclude=coverage"
+      - "--exclude=.env"
+  delegate_to: localhost
+
+- name: Create environment file
+  ansible.builtin.template:
+    src: templates/app.env.j2
+    dest: "{{ app_deploy_dir }}/.env"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0600'
+
+- name: Install all dependencies with Bun (including dev dependencies for build)
+  ansible.builtin.shell: |
+    export PATH="$HOME/.bun/bin:$PATH"
+    bun install
+  args:
+    chdir: "{{ app_deploy_dir }}"
+  become_user: "{{ ansible_user }}"
+  environment:
+    HOME: "{{ ansible_env.HOME }}"
+
+- name: Install SWC dependencies
+  ansible.builtin.shell: |
+    export PATH="$HOME/.bun/bin:$PATH"
+    bun add --dev @swc/core @swc/cli
+  args:
+    chdir: "{{ app_deploy_dir }}"
+  become_user: "{{ ansible_user }}"
+  environment:
+    HOME: "{{ ansible_env.HOME }}"
+
+- name: Build application
+  ansible.builtin.shell: |
+    export PATH="$HOME/.bun/bin:$PATH"
+    bun run build
+  args:
+    chdir: "{{ app_deploy_dir }}"
+  become_user: "{{ ansible_user }}"
+  environment:
+    HOME: "{{ ansible_env.HOME }}"
+
+- name: Create logs directory
+  ansible.builtin.file:
+    path: "{{ app_deploy_dir }}/logs"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Create PM2 ecosystem file
+  ansible.builtin.template:
+    src: templates/ecosystem.config.js.j2
+    dest: "{{ app_deploy_dir }}/ecosystem.config.js"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: '0644'
+
+- name: Start application with PM2 using Bun
+  ansible.builtin.shell: |
+    export PATH="$HOME/.bun/bin:$PATH"
+    pm2 start bun --name smart-airport -- run start
+  args:
+    chdir: "{{ app_deploy_dir }}"
+  become_user: "{{ ansible_user }}"
+  environment:
+    HOME: "{{ ansible_env.HOME }}"
+
+- name: Save PM2 configuration
+  ansible.builtin.command: pm2 save
+  become_user: "{{ ansible_user }}"
+  environment:
+    HOME: "{{ ansible_env.HOME }}"
+
+- name: Setup PM2 startup script
+  ansible.builtin.shell: |
+    pm2 startup systemd -u {{ ansible_user }} --hp {{ ansible_env.HOME }}
+  register: pm2_startup_command
+
+- name: Execute PM2 startup command
+  ansible.builtin.shell: "{{ pm2_startup_command.stdout }}"
+  when: pm2_startup_command.stdout is defined
+
+- name: Clean up old backups
+  ansible.builtin.shell: |
+    ls -dt {{ app_deploy_dir }}_backup_* | tail -n +4 | xargs -r rm -rf
+  ignore_errors: yes
+  when: backup_enabled | default(true)

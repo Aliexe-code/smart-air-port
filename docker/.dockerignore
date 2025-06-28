@@ -1,0 +1,140 @@
+# === OPTIMIZED DOCKERIGNORE FOR FAST BUILDS ===
+
+# Dependencies (will be installed in container)
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+bun.lockb
+
+# Build outputs (will be generated in container)
+dist
+build
+coverage
+*.tsbuildinfo
+
+# Environment files
+.env*
+!.env.example
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Version control
+.git
+.gitignore
+.gitattributes
+.hgignore
+.svn
+
+# Docker files (avoid recursion)
+docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Infrastructure
+ansible
+terraform
+k8s
+kubernetes
+
+# Documentation
+docs
+*.md
+README*
+CHANGELOG*
+LICENSE*
+
+# Test files and directories
+test
+tests
+__tests__
+*.test.*
+*.spec.*
+jest.config.*
+.nyc_output
+
+# Logs and runtime data
+logs
+*.log
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Cache directories
+.cache
+.npm
+.yarn
+.pnp
+.pnp.js
+.eslintcache
+
+# Coverage and reports
+coverage
+.nyc_output
+reports
+
+# Temporary folders
+tmp
+temp
+.tmp
+
+# Package manager files
+package-lock.json
+yarn.lock
+.yarn-integrity
+
+# Optional dependencies
+jspm_packages
+
+# Runtime data
+.node_repl_history
+
+# Output of package managers
+*.tgz
+*.tar.gz
+
+# Serverless directories
+.serverless
+
+# FuseBox cache
+.fusebox
+
+# DynamoDB Local files
+.dynamodb
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Microbundle cache
+.rpt2_cache
+.rts2_cache_cjs
+.rts2_cache_es
+.rts2_cache_umd
+
+# Optional REPL history
+.node_repl_history
+
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Dependency directories
+bower_components
+
+# Lock files (let container generate its own)
+*.lock

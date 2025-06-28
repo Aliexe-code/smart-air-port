@@ -1,0 +1,23 @@
+#SPDX-License-Identifier: MIT-0
+---
+# Handlers for Docker Compose role
+- name: restart application
+  ansible.builtin.command: docker compose up -d --force-recreate
+  args:
+    chdir: "{{ deployment_dir }}"
+  environment:
+    BUILD_NUMBER: "{{ build_number | default('latest') }}"
+    HOST_IP: "{{ ansible_host }}"
+  listen: restart application
+
+- name: stop application
+  ansible.builtin.command: docker compose down
+  args:
+    chdir: "{{ deployment_dir }}"
+  listen: stop application
+
+- name: reload nginx
+  ansible.builtin.command: docker compose restart nginx
+  args:
+    chdir: "{{ deployment_dir }}"
+  listen: reload nginx

@@ -1,0 +1,97 @@
+# Alert rules for Smart Airport monitoring
+groups:
+  - name: smart-airport-alerts
+    rules:
+      # Application Health Alerts
+      - alert: SmartAirportDown
+        expr: up{job="smart-airport"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Smart Airport application is down"
+          description: "Smart Airport application has been down for more than 1 minute."
+
+      - alert: SmartAirportHighResponseTime
+        expr: http_request_duration_seconds{job="smart-airport"} > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Smart Airport high response time"
+          description: "Smart Airport response time is above 2 seconds for 5 minutes."
+
+      - alert: SmartAirportHighErrorRate
+        expr: rate(http_requests_total{job="smart-airport",status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Smart Airport high error rate"
+          description: "Smart Airport error rate is above 10% for 2 minutes."
+
+      # System Resource Alerts
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is above 80% for 5 minutes on {{ $labels.instance }}."
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is above 85% for 5 minutes on {{ $labels.instance }}."
+
+      - alert: LowDiskSpace
+        expr: (node_filesystem_size_bytes{fstype!="tmpfs"} - node_filesystem_free_bytes{fstype!="tmpfs"}) / node_filesystem_size_bytes{fstype!="tmpfs"} * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space"
+          description: "Disk usage is above 90% for 5 minutes on {{ $labels.instance }}."
+
+      # Database Alerts
+      - alert: MongoDBDown
+        expr: up{job="mongodb"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MongoDB is down"
+          description: "MongoDB has been down for more than 1 minute."
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been down for more than 1 minute."
+
+      # Container Alerts (for Docker deployments)
+      - alert: ContainerDown
+        expr: up{job="docker"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container is down"
+          description: "A container has been down for more than 1 minute."
+
+      - alert: ContainerHighMemoryUsage
+        expr: container_memory_usage_bytes / container_spec_memory_limit_bytes * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container high memory usage"
+          description: "Container memory usage is above 90% for 5 minutes."

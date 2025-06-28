@@ -1,0 +1,25 @@
+---
+# Variables for dependencies role
+install_mongodb: true
+install_redis: true
+install_nginx: false
+configure_firewall: true
+
+# Redis configuration
+redis_password: "1asfalsp123ed"
+
+# Application configuration
+app_port: 3001
+
+# MongoDB configuration
+mongodb_version: "7.0"
+
+# Nginx configuration (if enabled)
+nginx_server_name: "{{ ansible_host }}"
+
+# Firewall ports to allow
+firewall_allowed_ports:
+  - "22"    # SSH
+  - "{{ app_port }}"  # Application port
+  - "80"    # HTTP (if nginx enabled)
+  - "443"   # HTTPS (if nginx enabled)

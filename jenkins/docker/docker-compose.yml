@@ -1,0 +1,118 @@
+services:
+  # Jenkins Master
+  jenkins:
+    image: jenkins/jenkins:lts-jdk17
+    container_name: smart-airport-jenkins
+    restart: unless-stopped
+    ports:
+      - "8080:8080"      # Jenkins Web UI
+      - "50000:50000"    # Jenkins Agent Port
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./jenkins_config:/var/jenkins_config
+      - ../../:/workspace/smart-airport
+    environment:
+      - JENKINS_OPTS=--httpPort=8080
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false -Xmx2g -Xms1g
+    networks:
+      - jenkins-network
+      - monitoring_monitoring  # Connect to monitoring network
+    user: root  # Required for Docker socket access
+
+  # Jenkins Agent (Optional - for distributed builds)
+  jenkins-agent:
+    image: jenkins/inbound-agent:latest
+    container_name: smart-airport-jenkins-agent
+    restart: unless-stopped
+    environment:
+      - JENKINS_URL=http://jenkins:8080
+      - JENKINS_SECRET=${JENKINS_AGENT_SECRET:-}
+      - JENKINS_AGENT_NAME=smart-airport-agent
+      - JENKINS_AGENT_WORKDIR=/home/jenkins/agent
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - jenkins_agent_workdir:/home/jenkins/agent
+    networks:
+      - jenkins-network
+    depends_on:
+      - jenkins
+    profiles:
+      - agent  # Only start with: docker compose --profile agent up
+
+  # SonarQube for Code Quality (Optional)
+  sonarqube:
+    image: sonarqube:community
+    container_name: smart-airport-sonarqube
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+      - SONAR_JDBC_URL=jdbc:postgresql://sonarqube-db:5432/sonar
+      - SONAR_JDBC_USERNAME=sonar
+      - SONAR_JDBC_PASSWORD=sonar123
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+      - sonarqube_extensions:/opt/sonarqube/extensions
+    networks:
+      - jenkins-network
+    depends_on:
+      - sonarqube-db
+    profiles:
+      - sonarqube  # Only start with: docker compose --profile sonarqube up
+
+  # PostgreSQL for SonarQube
+  sonarqube-db:
+    image: postgres:13
+    container_name: smart-airport-sonarqube-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=sonar
+      - POSTGRES_PASSWORD=sonar123
+      - POSTGRES_DB=sonar
+    volumes:
+      - sonarqube_db:/var/lib/postgresql/data
+    networks:
+      - jenkins-network
+    profiles:
+      - sonarqube
+
+  # Nexus Repository Manager (Optional)
+  nexus:
+    image: sonatype/nexus3:latest
+    container_name: smart-airport-nexus
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    volumes:
+      - nexus_data:/nexus-data
+    environment:
+      - INSTALL4J_ADD_VM_PARAMS=-Xms1g -Xmx1g -XX:MaxDirectMemorySize=2g
+    networks:
+      - jenkins-network
+    profiles:
+      - nexus  # Only start with: docker compose --profile nexus up
+
+volumes:
+  jenkins_home:
+    driver: local
+  jenkins_agent_workdir:
+    driver: local
+  sonarqube_data:
+    driver: local
+  sonarqube_logs:
+    driver: local
+  sonarqube_extensions:
+    driver: local
+  sonarqube_db:
+    driver: local
+  nexus_data:
+    driver: local
+
+networks:
+  jenkins-network:
+    driver: bridge
+  monitoring_monitoring:
+    external: true  # Connect to existing monitoring network
