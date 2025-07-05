@@ -70,10 +70,14 @@ async function bootstrap() {
   app.useGlobalFilters(new HttpExceptionFilter());
 
 app.enableCors({
-  origin: 'https://sky-shifters.vercel.app',
+  origin: [
+    'https://sky-shifters.vercel.app',
+    'https://taier.z6.web.core.windows.net'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
 });
+
 
   // CORS removed for production - configure at reverse proxy level
   // app.enableCors({
